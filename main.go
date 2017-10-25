@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/smtp"
 	"net/textproto"
@@ -9,6 +10,15 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/jordan-wright/email"
 )
+
+// var registerUrl string = "http://localhost:8888/v1/user/activate"
+
+var registerUrl string = "http://api.tigerb.cn/v1/user/activate"
+
+type RegisterInfo struct {
+	Email  string `json:"email"`
+	SToken string `json:"s_token"`
+}
 
 // * * * * *
 // minute 0-59
@@ -35,25 +45,36 @@ func consume() {
 	if err != nil {
 		return
 	}
+	dateString := time.Unix(time.Now().Unix(), 0).String()
 	if res == nil {
-		dateString := time.Now().Format("2006-01-02 08:00:01")
-		fmt.Println("[" + dateString + "]" + " empty data")
+		fmt.Println(dateString + " | empty data")
 		return
 	}
-	res, _ = redis.String(res, err)
-	sendEmail(res.(string))
+	result, _ := redis.String(res, err)
+	// fmt.Println(result)
+	register := RegisterInfo{}
+	json.Unmarshal([]byte(result), &register)
+	// fmt.Println(register.Email)
+	if res := sendEmail(register.Email, register.SToken); !res {
+		fmt.Println(dateString + " | " + register.Email + " | " + register.SToken + " | " + "FAIL")
+		return
+	}
+	fmt.Println(dateString + " | " + register.Email + " | " + register.SToken + " | " + "SUCCESS")
+	return
 }
 
-func sendEmail(emailAccont string) {
+func sendEmail(emailAccont string, sToken string) bool {
+	wholeUrl := registerUrl + "?s_token=" + sToken
 	e := &email.Email{
 		To:      []string{emailAccont},
 		From:    "Smartdo <15522634982@163.com>",
 		Subject: "Smartdo(Smartdo.io)注册邮箱验证",
-		HTML:    []byte("<h3>您好！感谢您注册Smartdo帐号，点击下面的链接即可完成激活：</h3><br><a href='http://localhost:8888/'>http://localhost:8888/</a>"),
+		HTML:    []byte("<h3>您好！感谢您注册Smartdo帐号，点击下面的链接即可完成激活：</h3><br><a href='" + wholeUrl + " +'>" + wholeUrl + "</a>"),
 		Headers: textproto.MIMEHeader{},
 	}
 	err := e.Send("smtp.163.com:25", smtp.PlainAuth("", "15522634982@163.com", "shizhan214", "smtp.163.com"))
 	if err == nil {
-		fmt.Println("success")
+		return true
 	}
+	return false
 }
