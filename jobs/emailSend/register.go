@@ -4,6 +4,7 @@ import (
 	"daemon/tool"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -11,13 +12,9 @@ import (
 
 const subject = "Smartdo(Smartdo.io)注册邮箱验证"
 
-var registerUrl string = "http://api.tigerb.cn/v1/user/activate"
-
-// var registerUrl string = "http://localhost:8888/v1/user/activate"
-
 type RegisterInfo struct {
-	Email  string `json:"email"`
-	SToken string `json:"s_token"`
+	Email string `json:"email"`
+	Code  int64  `json:"code"`
 }
 
 func Register() {
@@ -35,21 +32,18 @@ func Register() {
 		return
 	}
 	result, _ := redis.String(res, err)
-	// fmt.Println(result)
 	register := RegisterInfo{}
 	json.Unmarshal([]byte(result), &register)
-	// fmt.Println(register.Email)
-	if res, err := SendRegisterEmail(register.Email, register.SToken); !res {
-		fmt.Println(dateString + " | " + register.Email + " | " + register.SToken + " | " + "FAIL" + " | " + err.Error())
+	code := strconv.FormatInt(register.Code, 10)
+	if res, err := SendRegisterEmail(register.Email, code); !res {
+		fmt.Println(dateString + " | " + register.Email + " | " + code + " | " + "FAIL" + " | " + err.Error())
 		return
 	}
-	fmt.Println(dateString + " | " + register.Email + " | " + register.SToken + " | " + "SUCCESS")
+	fmt.Println(dateString + " | " + register.Email + " | " + code + " | " + "SUCCESS")
 	return
 }
 
-func SendRegisterEmail(email string, sToken string) (bool, error) {
-
-	wholeUrl := registerUrl + "?s_token=" + sToken
-	content := "<h3>您好！感谢您注册Smartdo帐号，点击下面的链接即可完成激活：</h3><br><a href='" + wholeUrl + " +'>" + wholeUrl + "</a>"
+func SendRegisterEmail(email string, code string) (bool, error) {
+	content := "<h3>您好！感谢您注册Smartdo帐号，你的验证码是：<h3>" + code
 	return tool.SendEmail(email, content, subject)
 }
